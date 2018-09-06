@@ -9,10 +9,6 @@ library(leaflet)
 library(leaflet.extras)
 library(geosphere)
 library(lubridate)
-library(gridExtra)
-library(grid)
-library(psych)
-library(car)
 
 # Load the datasets
 trip_data = as_tibble(fread("Data/201807-bluebikes-tripdata.csv")) #faster
@@ -24,10 +20,15 @@ station_data = read_csv("Data/Hubway_Stations_as_of_July_2017.csv")
 # Create map showing all the dock stations in Boston
 dock_map = station_data %>%
   leaflet() %>%
-  setView(lng=-71.0589, lat=42.3601, zoom=13) %>%
+  setView(lng = -71.0589,
+          lat = 42.3601,
+          zoom = 13) %>%
   addTiles() %>%
-  addMarkers(lng=station_data$Longitude, lat=station_data$Latitude,
-             popup=station_data$Station)
+  addMarkers(
+    lng = station_data$Longitude,
+    lat = station_data$Latitude,
+    popup = station_data$Station
+  )
 
 print(dock_map)
 
@@ -36,13 +37,15 @@ glimpse(trip_data)
 
 # Recode the gender, age and tripduration
 trip_data = trip_data %>%
-  mutate(minutes = round(tripduration / 60),
-         age = 2018 - `birth year`,
-         gender = case_when(
-           gender == 0 ~ "male",
-           gender == 1 ~ "female",
-           gender == 2 ~ "not specified"
-         ))
+  mutate(
+    minutes = round(tripduration / 60),
+    age = 2018 - `birth year`,
+    gender = case_when(
+      gender == 0 ~ "male",
+      gender == 1 ~ "female",
+      gender == 2 ~ "not specified"
+    )
+  )
 
 # Start and stop times are now character strings. We turn them into dates.
 trip_data = trip_data %>%
@@ -53,20 +56,36 @@ trip_data = trip_data %>%
 
 # Extract week, weekday and hour
 trip_data = trip_data %>%
-  mutate(day = day(starttime),
-         weekday = wday(starttime, label=TRUE),
-         hour = hour(starttime))
+  mutate(
+    day = day(starttime),
+    weekday = wday(starttime, label = TRUE),
+    hour = hour(starttime)
+  )
 
 # Before we continue, lets first clean up the names of the columns. I prefer
 # the lowercase syntax. We also drop the variables which are not relevant any
 # longer
 trip_data = trip_data %>%
-  select(trip_duration=tripduration, start_time=starttime, stop_time=stoptime, 
-         start_date, stop_date, start_lat=`start station latitude`, 
-         start_long=`start station longitude`, stop_lat=`end station latitude`, 
-         stop_long=`end station longitude`, start_id=`start station id`, 
-         stop_id=`end station id`, bike_id=bikeid, gender, minutes, age, day, 
-         weekday, hour) %>%
+  select(
+    trip_duration = tripduration,
+    start_time = starttime,
+    stop_time = stoptime,
+    start_date,
+    stop_date,
+    start_lat = `start station latitude`,
+    start_long = `start station longitude`,
+    stop_lat = `end station latitude`,
+    stop_long = `end station longitude`,
+    start_id = `start station id`,
+    stop_id = `end station id`,
+    bike_id = bikeid,
+    gender,
+    minutes,
+    age,
+    day,
+    weekday,
+    hour
+  ) %>%
   mutate(gender = as_factor(gender),
          weekday = as_factor(weekday))
 
@@ -80,7 +99,7 @@ haversine_dist = function(long1, lat1, long2, lat2) {
   b2 = long2 * radian
   diff_long = b2 - a2
   diff_lat = b1 - a1
-  a = (sin(diff_lat/2))^2 + cos(a1) * cos(b1) * (sin(diff_long/2))^2
+  a = (sin(diff_lat / 2)) ^ 2 + cos(a1) * cos(b1) * (sin(diff_long / 2)) ^ 2
   c = 2 * atan2(sqrt(a), sqrt(1 - a))
   d = R * c
   return(d)
@@ -105,44 +124,92 @@ trip_data = trip_data %>%
 # Lets see which areas are common starting locations
 heat_map_start = trip_data %>%
   leaflet() %>%
-  setView(lng=-71.0589, lat=42.3601, zoom=13) %>%
+  setView(lng = -71.0589,
+          lat = 42.3601,
+          zoom = 13) %>%
   addTiles() %>%
-  addHeatmap(lng=~start_long, lat=~start_lat, max=2, radius=15)
+  addHeatmap(
+    lng =  ~ start_long,
+    lat =  ~ start_lat,
+    max = 2,
+    radius = 15
+  )
 
 # Better heat map with radius depending on usage...
 heat_map_data = trip_data %>%
   group_by(start_id) %>%
-  summarise(start_lat = mean(start_lat),
-            start_long = mean(start_long),
-            n = n()) %>%
+  summarise(
+    start_lat = mean(start_lat),
+    start_long = mean(start_long),
+    n = n()
+  ) %>%
   ungroup() %>%
   mutate(n_scaled = 25 + 20 * (n - mean(n)) / sd(n))
 
 # TODO: make heat dependent on usage of station... Not working yet.
 heat_map_start2 = heat_map_data %>%
   leaflet() %>%
-  setView(lng=-71.0589, lat=42.3601, zoom=13) %>%
+  setView(lng = -71.0589,
+          lat = 42.3601,
+          zoom = 13) %>%
   addTiles() %>%
-  addHeatmap(lng=~start_long, lat=~start_lat, intensity=~n_scaled, max=2, radius=15)
+  addHeatmap(
+    lng =  ~ start_long,
+    lat =  ~ start_lat,
+    intensity =  ~ n_scaled,
+    max = 2,
+    radius = 15
+  )
 
 # Check which weekdays are popular by creating a bar plot
-wday_popular_plot = ggplot(trip_data, aes(weekday)) + geom_bar() + theme_bw() + 
-  labs(y="Number of trips", title="Popularity weekdays")
+wday_popular_plot = ggplot(trip_data, aes(weekday)) + geom_bar() + theme_bw() +
+  labs(y = "Number of trips", title = "Popularity weekdays")
 
 # Lets discover the popularity of the service over time by creating a time
 # series plot
 time_series_plot = trip_data %>%
   group_by(start_date) %>%
   summarise(n_trips = n()) %>%
-  ggplot(aes(x=start_date, y=n_trips)) + geom_line(lty=1) + geom_point() + 
-  labs(title="Total of Blue Bikes Usage in July, 2018", y="Total of bikes used",
-       x = "Date") + theme_bw() 
+  ggplot(aes(x = start_date, y = n_trips)) + geom_line(lty = 1) + geom_point() +
+  labs(title = "Total of Blue Bikes Usage in July, 2018", y = "Total of bikes used",
+       x = "Date") + theme_bw()
 
 # The previous plot showed that the bike usage varies a lot... Maybe the weekday
-# popularity is affected by this. 
+# popularity is affected by this.
 wday_popular_plot2 = trip_data %>%
   mutate(week = week(start_date)) %>%
   filter(week >= 27, week <= 30) %>%
-  ggplot(aes(weekday)) + geom_bar() + theme_bw() + facet_wrap(~week) +
-  labs(y="Number of trips", title="Popularity weekdays")
+  ggplot(aes(weekday)) + geom_bar() + theme_bw() + facet_wrap( ~ week) +
+  labs(y = "Number of trips", title = "Popularity weekdays")
 
+# Lets see which hour of the day is most popular across all rides
+hour_popular_plot = trip_data %>%
+  ggplot(aes(hour)) + geom_bar() + theme_bw() + 
+  labs(title="Popularity across the day", y="Number of trips")
+
+# Let's disentangle this effect depending on the day of the week
+weekday_hour_plot = trip_data %>%
+  group_by(weekday, hour) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x=hour, y=n)) + geom_line() + geom_point() + 
+    theme_bw() + facet_wrap(~weekday, scales="fixed") + 
+    labs(title="Popularity across the day", y="Number of trips")
+
+# Lets discover distance now. Starting with a density plot of this distance.
+distance_density = ggplot(trip_data, aes(distance)) + 
+  geom_density(alpha=0.3, fill="black") + theme_bw() + 
+  labs(title="Density of distance of trips", y="Density", x="Distance")
+
+# Lets see if this is different across genders
+distance_density_gender = trip_data %>%
+  filter(gender != "not specified") %>%
+  ggplot(aes(x=distance, fill=gender)) + geom_density(alpha=0.5) + 
+  theme_bw() + labs(title="Density of distance of trips", y="Density", x="Distance")
+
+# Lets check out the most popular routes
+popular_routes = trip_data %>%
+  mutate(trip=paste(start_id, stop_id, sep="-")) %>%
+  group_by(trip) %>%
+  summarise(n = n(),
+          distance = mean(distance)) %>%
+  arrange(-n)
