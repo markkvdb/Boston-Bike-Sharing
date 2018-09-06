@@ -102,3 +102,47 @@ trip_data = trip_data %>%
 
 #### Exploration ####
 
+# Lets see which areas are common starting locations
+heat_map_start = trip_data %>%
+  leaflet() %>%
+  setView(lng=-71.0589, lat=42.3601, zoom=13) %>%
+  addTiles() %>%
+  addHeatmap(lng=~start_long, lat=~start_lat, max=2, radius=15)
+
+# Better heat map with radius depending on usage...
+heat_map_data = trip_data %>%
+  group_by(start_id) %>%
+  summarise(start_lat = mean(start_lat),
+            start_long = mean(start_long),
+            n = n()) %>%
+  ungroup() %>%
+  mutate(n_scaled = 25 + 20 * (n - mean(n)) / sd(n))
+
+# TODO: make heat dependent on usage of station... Not working yet.
+heat_map_start2 = heat_map_data %>%
+  leaflet() %>%
+  setView(lng=-71.0589, lat=42.3601, zoom=13) %>%
+  addTiles() %>%
+  addHeatmap(lng=~start_long, lat=~start_lat, intensity=~n_scaled, max=2, radius=15)
+
+# Check which weekdays are popular by creating a bar plot
+wday_popular_plot = ggplot(trip_data, aes(weekday)) + geom_bar() + theme_bw() + 
+  labs(y="Number of trips", title="Popularity weekdays")
+
+# Lets discover the popularity of the service over time by creating a time
+# series plot
+time_series_plot = trip_data %>%
+  group_by(start_date) %>%
+  summarise(n_trips = n()) %>%
+  ggplot(aes(x=start_date, y=n_trips)) + geom_line(lty=1) + geom_point() + 
+  labs(title="Total of Blue Bikes Usage in July, 2018", y="Total of bikes used",
+       x = "Date") + theme_bw() 
+
+# The previous plot showed that the bike usage varies a lot... Maybe the weekday
+# popularity is affected by this. 
+wday_popular_plot2 = trip_data %>%
+  mutate(week = week(start_date)) %>%
+  filter(week >= 27, week <= 30) %>%
+  ggplot(aes(weekday)) + geom_bar() + theme_bw() + facet_wrap(~week) +
+  labs(y="Number of trips", title="Popularity weekdays")
+
